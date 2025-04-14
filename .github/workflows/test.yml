@@ -34,7 +34,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -e ".[test]" 
-          pip install git+https://github.com/agronholm/anyio.git@notify-closing#egg=anyio --ignore-installed
+          pip install git+https://github.com/agronholm/anyio.git#egg=anyio --ignore-installed
       - name: Check with mypy and ruff
         if: ${{ (matrix.python-version == '3.13') && (matrix.os == 'ubuntu-latest') }}
         run: |
