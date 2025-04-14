@@ -913,9 +913,9 @@ class Socket(zmq.Socket):
                     try:
                         await wait_readable(fd)
                     except ClosedResourceError:
-                        tg.cancel_scope.cancel()
                         break
-                    tg.cancel_scope.cancel()
+                    finally:
+                        tg.cancel_scope.cancel()
                 if self.stopped.is_set():
                     break
                 await self._handle_events()
