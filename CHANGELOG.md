@@ -1,5 +1,9 @@
 # Version history
 
+## 0.3.10
+
+- Support `pyzmq v27`.
+
 ## 0.3.9
 
 - Allow multiple `start`/`stop` calls.
