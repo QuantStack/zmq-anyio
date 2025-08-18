@@ -1,12 +1,31 @@
 import json
+import socket
 
 import pytest
 import zmq
-from anyio import create_task_group, fail_after, move_on_after, sleep, to_thread
+from anyio import create_task_group, fail_after, move_on_after, notify_closing, sleep, to_thread, wait_all_tasks_blocked, wait_readable
 from anyioutils import CancelledError, Future, create_task
 from zmq_anyio import Poller, Socket
 
 pytestmark = pytest.mark.anyio
+
+
+async def test_close1(create_bound_pair):
+    a, b = map(Socket, create_bound_pair(zmq.PUSH, zmq.PULL))
+    with fail_after(1):
+        async with create_task_group() as tg:
+            await tg.start(a.start)
+            await tg.start(b.start)
+            await sleep(0.4)
+            print(f"{a.fileno()=}")
+            print(f"{b.fileno()=}")
+            notify_closing(a)
+            notify_closing(b)
+            a.close()
+            b.close()
+            print(f"{a.fileno()=}")
+            print(f"{b.fileno()=}")
+            await sleep(0.4)
 
 
 async def test_context(context):
@@ -334,11 +353,39 @@ async def test_poll_on_closed_socket(push_pull):
     assert f.done()
 
 
-async def test_close(create_bound_pair):
+async def test_close2(create_bound_pair):
     a, b = map(Socket, create_bound_pair(zmq.PUSH, zmq.PULL))
     with fail_after(1):
         async with create_task_group() as tg:
             await tg.start(a.start)
             await tg.start(b.start)
+            await sleep(0.4)
+            print(f"{a.fileno()=}")
+            print(f"{b.fileno()=}")
+            notify_closing(a)
+            notify_closing(b)
             a.close()
             b.close()
+            print(f"{a.fileno()=}")
+            print(f"{b.fileno()=}")
+            await sleep(0.4)
+
+
+async def test_wait_readable():
+    with fail_after(1):
+        s1, s2 = socket.socketpair()
+        with s1, s2:
+            s1.setblocking(False)
+            s2.setblocking(False)
+            async with create_task_group() as tg:
+                tg.start_soon(wait_readable, s2)
+                await wait_all_tasks_blocked()
+                await sleep(0.1)
+                tg.cancel_scope.cancel()
+
+        s1, s2 = socket.socketpair()
+        with s1, s2:
+            s1.setblocking(False)
+            s2.setblocking(False)
+            s1.send(b"\x00")
+            await wait_readable(s2)

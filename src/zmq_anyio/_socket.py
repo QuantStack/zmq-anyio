@@ -194,6 +194,12 @@ class Socket(zmq.Socket):
         self._task_group = task_group
         self.__stack = None
 
+    def fileno(self) -> int:
+        try:
+            return super().fileno()
+        except zmq.error.ZMQError:
+            return -1
+
     def get(self, key):
         result = super().get(key)
         if key == EVENTS:
@@ -897,20 +903,21 @@ class Socket(zmq.Socket):
                     self._task_group,
                     exception_handler=ignore_exceptions,
                 )
+                wait_readable_task = create_task(
+                    wait_readable(self),  # type: ignore[arg-type]
+                    self._task_group,
+                    exception_handler=self._handle_closed_resource_error,
+                )
                 tasks = [
-                    create_task(
-                        wait_readable(self._shadow_sock),  # type: ignore[arg-type]
-                        self._task_group,
-                        exception_handler=ignore_exceptions,
-                    ),
                     wait_stopped_task,
+                    wait_readable_task,
                 ]
                 done, pending = await wait(
                     tasks, self._task_group, return_when=FIRST_COMPLETED
                 )
                 for task in pending:
                     task.cancel()
-                if wait_stopped_task in done:
+                if wait_stopped_task in done or self.stopped.is_set():
                     break
                 await self._handle_events()
         except BaseException:
@@ -918,8 +925,12 @@ class Socket(zmq.Socket):
         finally:
             self._exited.set()
 
+        self.stopped.set()
+
+    def _handle_closed_resource_error(self, exc: BaseException) -> bool:
         assert self.stopped is not None
         self.stopped.set()
+        return True
 
     async def stop(self):
         assert self._exited is not None
