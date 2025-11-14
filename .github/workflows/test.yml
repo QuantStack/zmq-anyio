@@ -32,7 +32,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
-        run: pip install -e ".[test]" 
+        run: pip install -e ".[test]"
       - name: Check with mypy and ruff
         if: ${{ (matrix.python-version == '3.13') && (matrix.os == 'ubuntu-latest') }}
         run: |
