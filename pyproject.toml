@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "zmq-anyio"
-version = "0.3.11"
+version = "0.3.12"
 description = "Asynchronous API for ZMQ using AnyIO"
 readme = "README.md"
 authors = [

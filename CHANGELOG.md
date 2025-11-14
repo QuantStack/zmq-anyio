@@ -1,5 +1,9 @@
 # Version history
 
+## 0.3.12
+
+- Update GitHub workflows and use `uv` instead of `hatch`.
+
 ## 0.3.11
 
 - Simplify `wait_readable` loop and use `anyio.notify_closing`.
