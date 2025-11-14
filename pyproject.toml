@@ -27,7 +27,7 @@ classifiers = [
 ]
 requires-python = ">= 3.9"
 dependencies = [
-    "anyio >=4.8.0,<5.0.0",
+    "anyio >=4.10.0,<5.0.0",
     "anyioutils >=0.7.1,<0.8.0",
     "pyzmq >=26.0.0,<28.0.0",
 ]
@@ -36,7 +36,7 @@ dependencies = [
 test = [
     "pytest >=8,<9",
     "pytest-timeout",
-    "trio >=0.27.0,<0.28",
+    "anyio[trio]",
     "mypy",
     "ruff",
     "coverage[toml] >=7,<8",

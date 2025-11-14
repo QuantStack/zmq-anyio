@@ -66,7 +66,7 @@ def context(contexts):
 
 
 @pytest.fixture
-def sockets(contexts):
+async def sockets(contexts):
     sockets = []
     yield sockets
     # ensure any tracked sockets get their contexts cleaned up
