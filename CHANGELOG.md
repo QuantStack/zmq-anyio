@@ -1,5 +1,9 @@
 # Version history
 
+## 0.3.11
+
+- Simplify `wait_readable` loop and use `anyio.notify_closing`.
+
 ## 0.3.10
 
 - Support `pyzmq v27`.
