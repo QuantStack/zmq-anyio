@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "zmq-anyio"
-version = "0.3.12"
+version = "0.3.13"
 description = "Asynchronous API for ZMQ using AnyIO"
 readme = "README.md"
 authors = [
@@ -56,3 +56,6 @@ show_missing = true
 
 [tool.pytest.ini_options]
 timeout = 10
+
+[tool.uv.build-backend]
+source-include = ["tests/**"]

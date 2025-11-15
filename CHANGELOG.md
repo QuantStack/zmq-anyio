@@ -1,5 +1,9 @@
 # Version history
 
+## 0.3.13
+
+- Include `tests` to source distribution.
+
 ## 0.3.12
 
 - Update GitHub workflows and use `uv` instead of `hatch`.
