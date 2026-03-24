@@ -2,6 +2,7 @@ import json
 
 import pytest
 import zmq
+import zmq.asyncio
 from anyio import create_task_group, fail_after, move_on_after, sleep, to_thread
 from anyioutils import CancelledError, Future, create_task
 from zmq_anyio import Poller, Socket
@@ -342,3 +343,24 @@ async def test_close(create_bound_pair):
             await tg.start(b.start)
             a.close()
             b.close()
+
+
+async def test_restart_zmq_anyio(free_tcp_port_factory):
+    context = zmq.Context()
+    for i in range(100):
+        print(f"{i=}")
+        port = free_tcp_port_factory()
+        sock = Socket(context.socket(zmq.DEALER))
+        async with sock:
+            sock.connect(f"tcp://127.0.0.1:{port}")
+
+
+@pytest.mark.parametrize("anyio_backend", ["asyncio"])
+async def test_restart_pyzmq(free_tcp_port_factory):
+    context = zmq.asyncio.Context()
+    for i in range(100):
+        print(f"{i=}")
+        port = free_tcp_port_factory()
+        sock = context.socket(zmq.DEALER)
+        sock.connect(f"tcp://127.0.0.1:{port}")
+        sock.close()
