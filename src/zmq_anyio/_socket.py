@@ -152,19 +152,18 @@ class _NoTimer:
 
 
 class Socket(zmq.Socket):
-    _recv_futures = None
-    _send_futures = None
-    _state = 0
+    _recv_futures: deque[_FutureEvent]
+    _send_futures: deque[_FutureEvent]
+    _state: int
     _shadow_sock: zmq.Socket
-    _fd = None
-    _exit_stack = None
-    _task_group = None
-    __stack: AsyncExitStack | None = None
-    _thread = None
-    started = None
-    stopped = None
-    _starting = None
-    _exited = None
+    _fd: int | None
+    _task_group: TaskGroup | None
+    __stack: AsyncExitStack | None
+    _thread: int | None
+    started: Event
+    stopped: Event
+    _starting: bool
+    _exited: Event
 
     def __init__(
         self,
@@ -195,6 +194,8 @@ class Socket(zmq.Socket):
         self.stopped = Event()
         self._task_group = task_group
         self.__stack = None
+        self._starting = False
+        self._thread = None
 
     def get(self, key):
         result = super().get(key)
@@ -907,7 +908,7 @@ class Socket(zmq.Socket):
                 return -1
 
         try:
-            while (fd := fileno()) > 0:
+            while (fd := fileno()) != -1:
                 async with create_task_group() as tg:
                     tg.start_soon(wait_or_cancel)
                     try:
@@ -938,6 +939,10 @@ class Socket(zmq.Socket):
         fd = self._fd
         if not self.closed and fd is not None:
             notify_closing(fd)
+            try:
+                self._shadow_sock.close(linger=linger)
+            except BaseException:
+                pass
             try:
                 super().close(linger=linger)
             except BaseException:
