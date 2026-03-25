@@ -10,6 +10,7 @@ from typing import (
     Any,
     Callable,
     NamedTuple,
+    cast,
 )
 
 from anyio import (
@@ -624,7 +625,7 @@ class Socket(zmq.Socket):
         assert self._recv_futures is not None
         self._recv_futures.append(_future_event)
 
-        if self._shadow_sock.get(EVENTS) & POLLIN:
+        if cast(int, self._shadow_sock.get(EVENTS)) & POLLIN:
             # recv immediately, if we can
             self._handle_recv()
         if self._recv_futures and _future_event in self._recv_futures:
@@ -723,6 +724,7 @@ class Socket(zmq.Socket):
 
         timer.cancel()
 
+        recv: Any
         if kind == "poll":
             # on poll event, just signal ready, nothing else.
             f.set_result(None)
@@ -731,6 +733,8 @@ class Socket(zmq.Socket):
             recv = self._shadow_sock.recv_multipart
         elif kind == "recv":
             recv = self._shadow_sock.recv
+        elif kind == "recv_into":
+            recv = self._shadow_sock.recv_into
         else:
             raise ValueError(f"Unhandled recv event type: {kind!r}")
 
@@ -763,6 +767,7 @@ class Socket(zmq.Socket):
 
         timer.cancel()
 
+        send: Any
         if kind == "poll":
             # on poll event, just signal ready, nothing else.
             f.set_result(None)
@@ -833,7 +838,7 @@ class Socket(zmq.Socket):
 
     async def __aenter__(self) -> Socket:
         if self._starting:
-            return
+            return self
 
         self._starting = True
         if self._task_group is not None:

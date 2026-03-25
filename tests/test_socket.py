@@ -344,7 +344,7 @@ async def test_close(create_bound_pair):
             b.close()
 
 
-async def test_restart_zmq_anyio(free_tcp_port_factory):
+async def test_restart(free_tcp_port_factory):
     context = zmq.Context()
     for i in range(100):
         print(f"{i=}")
