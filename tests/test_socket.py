@@ -344,6 +344,10 @@ async def test_close(create_bound_pair):
             b.close()
 
 
+@pytest.mark.skipif(
+    platform.python_implementation() == "PyPy",
+    reason="Sometimes fails on PyPy",
+)
 async def test_restart(free_tcp_port_factory):
     context = zmq.Context()
     for i in range(100):
