@@ -12,7 +12,6 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
-      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version:
@@ -32,12 +31,12 @@ jobs:
           activate-environment: "true"
       - name: Install zmq-anyio
         run: uv pip install -e . --group test
-      #- name: Check with mypy and ruff
-      #  if: ${{ (matrix.python-version == '3.14') && (matrix.os == 'ubuntu-latest') }}
-      #  run: |
-      #    uv run mypy src/zmq_anyio
-      #    uv run ruff format --check src
-      #    uv run ruff check src
+      - name: Check with mypy and ruff
+        if: ${{ (matrix.python-version == '3.14') && (matrix.os == 'ubuntu-latest') }}
+        run: |
+          uv run mypy src/zmq_anyio
+          uv run ruff format --check src
+          uv run ruff check src
       - name: Run tests
         if: ${{ !((matrix.python-version == '3.14') && (matrix.os == 'ubuntu-latest')) }}
         run: uv run pytest --color=yes -v tests
