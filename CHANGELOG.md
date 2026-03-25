@@ -1,5 +1,9 @@
 # Version history
 
+## 0.3.14
+
+- Fix `Socket.close()`.
+
 ## 0.3.13
 
 - Include `tests` to source distribution.
