@@ -1,4 +1,5 @@
 import json
+import platform
 
 import pytest
 import zmq
@@ -342,3 +343,17 @@ async def test_close(create_bound_pair):
             await tg.start(b.start)
             a.close()
             b.close()
+
+
+@pytest.mark.skipif(
+    platform.python_implementation() == "PyPy",
+    reason="Sometimes fails on PyPy",
+)
+async def test_restart(free_tcp_port_factory):
+    context = zmq.Context()
+    for i in range(100):
+        print(f"{i=}")
+        port = free_tcp_port_factory()
+        sock = Socket(context.socket(zmq.DEALER))
+        async with sock:
+            sock.connect(f"tcp://127.0.0.1:{port}")

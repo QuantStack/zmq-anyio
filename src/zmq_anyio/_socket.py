@@ -10,6 +10,7 @@ from typing import (
     Any,
     Callable,
     NamedTuple,
+    cast,
 )
 
 from anyio import (
@@ -152,19 +153,18 @@ class _NoTimer:
 
 
 class Socket(zmq.Socket):
-    _recv_futures = None
-    _send_futures = None
-    _state = 0
+    _recv_futures: deque[_FutureEvent]
+    _send_futures: deque[_FutureEvent]
+    _state: int
     _shadow_sock: zmq.Socket
-    _fd = None
-    _exit_stack = None
-    _task_group = None
-    __stack: AsyncExitStack | None = None
-    _thread = None
-    started = None
-    stopped = None
-    _starting = None
-    _exited = None
+    _fd: int | None
+    _task_group: TaskGroup | None
+    __stack: AsyncExitStack | None
+    _thread: int | None
+    started: Event
+    stopped: Event
+    _starting: bool
+    _exited: Event
 
     def __init__(
         self,
@@ -195,6 +195,8 @@ class Socket(zmq.Socket):
         self.stopped = Event()
         self._task_group = task_group
         self.__stack = None
+        self._starting = False
+        self._thread = None
 
     def get(self, key):
         result = super().get(key)
@@ -623,7 +625,7 @@ class Socket(zmq.Socket):
         assert self._recv_futures is not None
         self._recv_futures.append(_future_event)
 
-        if self._shadow_sock.get(EVENTS) & POLLIN:
+        if cast(int, self._shadow_sock.get(EVENTS)) & POLLIN:
             # recv immediately, if we can
             self._handle_recv()
         if self._recv_futures and _future_event in self._recv_futures:
@@ -722,6 +724,7 @@ class Socket(zmq.Socket):
 
         timer.cancel()
 
+        recv: Any
         if kind == "poll":
             # on poll event, just signal ready, nothing else.
             f.set_result(None)
@@ -730,6 +733,8 @@ class Socket(zmq.Socket):
             recv = self._shadow_sock.recv_multipart
         elif kind == "recv":
             recv = self._shadow_sock.recv
+        elif kind == "recv_into":
+            recv = self._shadow_sock.recv_into
         else:
             raise ValueError(f"Unhandled recv event type: {kind!r}")
 
@@ -762,6 +767,7 @@ class Socket(zmq.Socket):
 
         timer.cancel()
 
+        send: Any
         if kind == "poll":
             # on poll event, just signal ready, nothing else.
             f.set_result(None)
@@ -832,7 +838,7 @@ class Socket(zmq.Socket):
 
     async def __aenter__(self) -> Socket:
         if self._starting:
-            return
+            return self
 
         self._starting = True
         if self._task_group is not None:
@@ -907,7 +913,7 @@ class Socket(zmq.Socket):
                 return -1
 
         try:
-            while (fd := fileno()) > 0:
+            while (fd := fileno()) != -1:
                 async with create_task_group() as tg:
                     tg.start_soon(wait_or_cancel)
                     try:
@@ -938,6 +944,10 @@ class Socket(zmq.Socket):
         fd = self._fd
         if not self.closed and fd is not None:
             notify_closing(fd)
+            try:
+                self._shadow_sock.close(linger=linger)
+            except BaseException:
+                pass
             try:
                 super().close(linger=linger)
             except BaseException:
