@@ -39,11 +39,11 @@ sock2 = zmq_anyio.Socket(sock2)
 
 async def main():
     async with sock1, sock2:  # use an async context manager
-        await sock1.asend(b"Hello").wait()  # use `asend` instead of `send`, and await the `.wait()` method
+        await sock1.asend(b"Hello")  # use `asend` instead of `send` and await it
         sock1.asend(b", World!")  # or don't await it, it's sent in the background
-        assert await sock2.arecv().wait() == b"Hello"  # use `arecv` instead of `recv`, and await the `.wait()` method
+        assert await sock2.arecv() == b"Hello"  # use `arecv` instead of `recv`
         future = sock2.arecv()  # or get the future and await it later
-        assert await future.wait() == b", World!"
+        assert await future == b", World!"
 
 anyio.run(main)
 ```
