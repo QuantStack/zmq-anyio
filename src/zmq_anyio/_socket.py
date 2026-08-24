@@ -222,7 +222,9 @@ class Socket(zmq.Socket):
         track: bool = False,
     ) -> Future[bytes | zmq.Frame]:
         self._check_started()
-        return self._add_recv_event("recv", {"flags": flags, "copy": copy, "track": track})
+        return self._add_recv_event(
+            "recv", {"flags": flags, "copy": copy, "track": track}
+        )
 
     def arecv_json(
         self,
