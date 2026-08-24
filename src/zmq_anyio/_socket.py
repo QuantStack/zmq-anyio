@@ -15,6 +15,7 @@ from typing import (
 
 from anyio import (
     Event,
+    Future,
     TASK_STATUS_IGNORED,
     create_task_group,
     get_cancelled_exc_class,
@@ -28,8 +29,6 @@ from anyio.abc import TaskGroup, TaskStatus
 import zmq
 from zmq import EVENTS, POLLIN, POLLOUT
 from zmq.utils import jsonapi
-
-from ._future import Future
 
 try:
     DEFAULT_PROTOCOL = pickle.DEFAULT_PROTOCOL
@@ -65,9 +64,9 @@ class Poller(zmq.Poller):
             try:
                 result = super().poll(0)
             except Exception as e:
-                future.set_exception(e)
+                future.exception = e
             else:
-                future.set_result(result)
+                future.return_value = result
             return future
 
         # register Future to be called as soon as any event is available on any socket
@@ -78,7 +77,7 @@ class Poller(zmq.Poller):
 
         def wake_raw(*args):
             if not watcher.done():
-                watcher.set_result(None)
+                watcher.return_value = None
 
         # watcher.add_done_callback(lambda f: self._unwatch_raw_sockets(*raw_sockets))
 
@@ -114,14 +113,14 @@ class Poller(zmq.Poller):
                 return
             if watcher.status == Future.Status.FAILED:
                 assert watcher.exception is not None
-                future.set_exception(watcher.exception)
+                future.exception = watcher.exception
             else:
                 try:
                     result = super(Poller, self).poll(0)
                 except Exception as e:
-                    future.set_exception(e)
+                    future.exception = e
                 else:
-                    future.set_result(result)
+                    future.return_value = result
 
         task_group.start_soon(on_poll_ready, watcher)
 
@@ -130,7 +129,7 @@ class Poller(zmq.Poller):
             async def trigger_timeout():
                 await sleep(1e-3 * timeout)
                 if not watcher.status != Future.Status.PENDING:
-                    watcher.set_result(None)
+                    watcher.return_value = None
 
             if not future.status != Future.Status.PENDING:
                 timeout_handle = task_group.create_task(trigger_timeout())
@@ -236,8 +235,8 @@ class Socket(zmq.Socket):
                 return
 
             msg = _future.return_value
-            future.set_result(
-                self._deserialize(msg, lambda buf: jsonapi.loads(buf, **kwargs))
+            future.return_value = self._deserialize(
+                msg, lambda buf: jsonapi.loads(buf, **kwargs)
             )
 
         _future = self.arecv(flags)
@@ -281,7 +280,9 @@ class Socket(zmq.Socket):
                 return
 
             msg = _future.return_value
-            future.set_result(self._deserialize(msg, lambda buf: buf.decode(encoding)))
+            future.return_value = self._deserialize(
+                msg, lambda buf: buf.decode(encoding)
+            )
 
         _future = self.arecv(flags)
         assert self._task_group is not None
@@ -322,7 +323,7 @@ class Socket(zmq.Socket):
                 return
 
             msg = _future.return_value
-            future.set_result(self._deserialize(msg, pickle.loads))
+            future.return_value = self._deserialize(msg, pickle.loads)
 
         _future = self.arecv(flags)
         assert self._task_group is not None
@@ -372,7 +373,7 @@ class Socket(zmq.Socket):
 
             frames = _future.return_value
             res = self._deserialize(frames, deserialize)
-            future.set_result(res)
+            future.return_value = res
 
         _future = self.arecv_multipart(flags=flags, copy=copy)
         self._task_group.start_soon(callback, _future)
@@ -547,10 +548,10 @@ class Socket(zmq.Socket):
                     pass
                 return
             if f.status == Future.Status.FAILED:
-                future.set_exception(poll_future.exception)
+                future.exception = poll_future.exception
             else:
                 evts = dict(poll_future.return_value)
-                future.set_result(evts.get(self, 0))
+                future.return_value = evts.get(self, 0)
 
         async def unwrap_result(f):
             await f.wait()
@@ -585,7 +586,7 @@ class Socket(zmq.Socket):
                 return
 
             # raise EAGAIN
-            future.set_exception(zmq.Again())
+            future.exception = zmq.Again()
 
         return self._call_later(timeout, future_timeout)
 
@@ -634,9 +635,9 @@ class Socket(zmq.Socket):
             try:
                 r = recv(**kwargs)
             except Exception as e:
-                f.set_exception(e)
+                f.exception = e
             else:
-                f.set_result(r)
+                f.return_value = r
             return f
 
         timer = _NoTimer
@@ -690,15 +691,15 @@ class Socket(zmq.Socket):
                 r = send(msg, **nowait_kwargs)
             except zmq.Again as e:
                 if flags & zmq.DONTWAIT:
-                    f.set_exception(e)
+                    f.exception = e
                 else:
                     # EAGAIN raised and DONTWAIT not requested,
                     # proceed with async send
                     finish_early = False
             except Exception as e:
-                f.set_exception(e)
+                f.exception = e
             else:
-                f.set_result(r)
+                f.return_value = r
 
             if finish_early:
                 # short-circuit resolved, return finished Future
@@ -757,7 +758,7 @@ class Socket(zmq.Socket):
         recv: Any
         if kind == "poll":
             # on poll event, just signal ready, nothing else.
-            f.set_result(None)
+            f.return_value = None
             return
         elif kind == "recv_multipart":
             recv = self._shadow_sock.recv_multipart
@@ -772,9 +773,9 @@ class Socket(zmq.Socket):
         try:
             result = recv(**kwargs)
         except Exception as e:
-            f.set_exception(e)
+            f.exception = e
         else:
-            f.set_result(result)
+            f.return_value = result
 
     def _handle_send(self) -> None:
         if not self._shadow_sock.get(EVENTS) & POLLOUT:  # type: ignore[operator]
@@ -800,7 +801,7 @@ class Socket(zmq.Socket):
         send: Any
         if kind == "poll":
             # on poll event, just signal ready, nothing else.
-            f.set_result(None)
+            f.return_value = None
             return
         elif kind == "send_multipart":
             send = self._shadow_sock.send_multipart
@@ -813,9 +814,9 @@ class Socket(zmq.Socket):
         try:
             result = send(msg, **kwargs)
         except Exception as e:
-            f.set_exception(e)
+            f.exception = e
         else:
-            f.set_result(result)
+            f.return_value = result
 
     # event masking from ZMQStream
     async def _handle_events(self) -> None:

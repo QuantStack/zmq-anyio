@@ -3,9 +3,8 @@ import platform
 
 import pytest
 import zmq
-from anyio import create_task_group, fail_after, move_on_after, sleep, to_thread
+from anyio import Future, FutureCancelled, FutureFailed, create_task_group, fail_after, move_on_after, sleep, to_thread
 from zmq_anyio import Poller, Socket
-from zmq_anyio._future import Future, FutureCancelled, TaskFailed
 
 pytestmark = pytest.mark.anyio
 
@@ -137,7 +136,7 @@ async def test_recv_timeout(push_pull):
         f1 = b.arecv()
         b.rcvtimeo = 1000
         f2 = b.arecv_multipart()
-        with pytest.raises(TaskFailed):
+        with pytest.raises(FutureFailed):
             await f1
         assert isinstance(f1.exception, zmq.Again)
         await a.asend_multipart([b"hi", b"there"]).wait()
@@ -256,7 +255,7 @@ async def test_recv_dontwait(push_pull):
     push, pull = map(Socket, push_pull)
     async with pull, push:
         f = pull.arecv(zmq.DONTWAIT)
-        with pytest.raises(TaskFailed):
+        with pytest.raises(FutureFailed):
             await f
         assert isinstance(f.exception, zmq.Again)
         await push.asend(b"ping").wait()
