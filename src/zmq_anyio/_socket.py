@@ -1,32 +1,32 @@
 from __future__ import annotations
 
-from contextlib import AsyncExitStack
 import pickle
 import selectors
+import sys
 from collections import deque
+from collections.abc import Callable
+from contextlib import AsyncExitStack
 from functools import partial
 from threading import get_ident
 from typing import (
     Any,
-    Callable,
     NamedTuple,
     cast,
 )
 
+import zmq
 from anyio import (
+    TASK_STATUS_IGNORED,
+    ClosedResourceError,
     Event,
     Future,
-    TASK_STATUS_IGNORED,
     create_task_group,
     get_cancelled_exc_class,
+    notify_closing,
     sleep,
     wait_readable,
-    ClosedResourceError,
-    notify_closing,
 )
 from anyio.abc import TaskGroup, TaskStatus
-
-import zmq
 from zmq import EVENTS, POLLIN, POLLOUT
 from zmq.utils import jsonapi
 
@@ -34,6 +34,11 @@ try:
     DEFAULT_PROTOCOL = pickle.DEFAULT_PROTOCOL
 except AttributeError:
     DEFAULT_PROTOCOL = pickle.HIGHEST_PROTOCOL
+
+if sys.version_info >= (3, 11):
+    from typing import Self
+else:  # pragma: nocover
+    from typing_extensions import Self
 
 
 class _FutureEvent(NamedTuple):
@@ -84,7 +89,7 @@ class Poller(zmq.Poller):
         for socket, mask in self.sockets:
             if isinstance(socket, zmq.Socket):
                 if not isinstance(socket, Socket):
-                    raise RuntimeError(f"Not an async socket: {socket}")
+                    raise TypeError(f"Not an async socket: {socket}")
                 if mask & zmq.POLLIN:
                     socket._add_recv_event(
                         "poll", future=watcher, task_group=task_group
@@ -102,16 +107,16 @@ class Poller(zmq.Poller):
 
         async def on_poll_ready(f: Future):
             await f.wait()
-            if future.status != Future.Status.PENDING:
+            if future.status is not Future.Status.PENDING:
                 return
-            if watcher.status == Future.Status.CANCELLED:
+            if watcher.status is Future.Status.CANCELLED:
                 try:
                     future.cancel()
                 except RuntimeError:
                     # RuntimeError may be called during teardown
                     pass
                 return
-            if watcher.status == Future.Status.FAILED:
+            if watcher.status is Future.Status.FAILED:
                 assert watcher.exception is not None
                 future.exception = watcher.exception
             else:
@@ -128,10 +133,10 @@ class Poller(zmq.Poller):
             # schedule cancel to fire on poll timeout, if any
             async def trigger_timeout():
                 await sleep(1e-3 * timeout)
-                if not watcher.status != Future.Status.PENDING:
+                if watcher.status is Future.Status.PENDING:
                     watcher.return_value = None
 
-            if not future.status != Future.Status.PENDING:
+            if future.status is Future.Status.PENDING:
                 timeout_handle = task_group.create_task(trigger_timeout())
 
                 async def cancel_timeout(f):
@@ -142,7 +147,7 @@ class Poller(zmq.Poller):
 
         async def cancel_watcher(f):
             await f.wait()
-            if not watcher.status != Future.Status.PENDING:
+            if watcher.status is Future.Status.PENDING:
                 watcher.cancel()
 
         task_group.start_soon(cancel_watcher, future)
@@ -217,7 +222,7 @@ class Socket(zmq.Socket):
         track: bool = False,
     ) -> Future[bytes | zmq.Frame]:
         self._check_started()
-        return self._add_recv_event("recv", dict(flags=flags, copy=copy, track=track))
+        return self._add_recv_event("recv", {"flags": flags, "copy": copy, "track": track})
 
     def arecv_json(
         self,
@@ -228,10 +233,10 @@ class Socket(zmq.Socket):
 
         async def callback(_future: Future) -> None:
             await _future.wait()
-            if _future.status == Future.Status.CANCELLED:
+            if _future.status is Future.Status.CANCELLED:
                 return
 
-            if future.status != Future.Status.PENDING:
+            if future.status is not Future.Status.PENDING:
                 return
 
             msg = _future.return_value
@@ -245,7 +250,7 @@ class Socket(zmq.Socket):
 
         async def _callback(future: Future) -> None:
             await future.wait()
-            if future.status == Future.Status.CANCELLED:
+            if future.status is Future.Status.CANCELLED:
                 _future.cancel()
 
         self._task_group.start_soon(_callback, future)
@@ -276,7 +281,7 @@ class Socket(zmq.Socket):
 
         async def callback(_future: Future) -> None:
             await _future.wait()
-            if _future.status == Future.Status.CANCELLED:
+            if _future.status is Future.Status.CANCELLED:
                 return
 
             msg = _future.return_value
@@ -290,7 +295,7 @@ class Socket(zmq.Socket):
 
         async def _callback(future: Future) -> None:
             await future.wait()
-            if future.status == Future.Status.CANCELLED:
+            if future.status is Future.Status.CANCELLED:
                 _future.cancel()
 
         self._task_group.start_soon(_callback, future)
@@ -319,7 +324,7 @@ class Socket(zmq.Socket):
 
         async def callback(_future: Future) -> None:
             await _future.wait()
-            if _future.status == Future.Status.CANCELLED:
+            if _future.status is Future.Status.CANCELLED:
                 return
 
             msg = _future.return_value
@@ -331,7 +336,7 @@ class Socket(zmq.Socket):
 
         async def _callback(future: Future) -> None:
             await future.wait()
-            if future.status == Future.Status.CANCELLED:
+            if future.status is Future.Status.CANCELLED:
                 _future.cancel()
 
         self._task_group.start_soon(_callback, future)
@@ -368,7 +373,7 @@ class Socket(zmq.Socket):
 
         async def callback(_future: Future) -> None:
             await _future.wait()
-            if _future.status == Future.Status.CANCELLED:
+            if _future.status is Future.Status.CANCELLED:
                 return
 
             frames = _future.return_value
@@ -380,7 +385,7 @@ class Socket(zmq.Socket):
 
         async def _callback(future: Future) -> None:
             await future.wait()
-            if future.status == Future.Status.CANCELLED:
+            if future.status is Future.Status.CANCELLED:
                 _future.cancel()
 
         self._task_group.start_soon(_callback, future)
@@ -395,7 +400,7 @@ class Socket(zmq.Socket):
     ) -> Future[list[bytes] | list[zmq.Frame]]:
         self._check_started()
         return self._add_recv_event(
-            "recv_multipart", dict(flags=flags, copy=copy, track=track)
+            "recv_multipart", {"flags": flags, "copy": copy, "track": track}
         )
 
     def send(self, *args, **kwargs):
@@ -422,7 +427,7 @@ class Socket(zmq.Socket):
         kwargs["flags"] = flags
         kwargs["copy"] = copy
         kwargs["track"] = track
-        kwargs.update(dict(flags=flags, copy=copy, track=track))
+        kwargs.update(flags=flags, copy=copy, track=track)
         return self._add_send_event("send", msg=data, kwargs=kwargs)
 
     def asend_json(
@@ -538,16 +543,16 @@ class Socket(zmq.Socket):
         future = Future[Any]()
 
         def _unwrap_result(f):
-            if future.status != Future.Status.PENDING:
+            if future.status is not Future.Status.PENDING:
                 return
-            if poll_future.status == Future.Status.CANCELLED:
+            if poll_future.status is Future.Status.CANCELLED:
                 try:
                     future.cancel()
                 except RuntimeError:
                     # RuntimeError may be called during teardown
                     pass
                 return
-            if f.status == Future.Status.FAILED:
+            if f.status is Future.Status.FAILED:
                 future.exception = poll_future.exception
             else:
                 evts = dict(poll_future.return_value)
@@ -557,7 +562,7 @@ class Socket(zmq.Socket):
             await f.wait()
             _unwrap_result(f)
 
-        if poll_future.status != Future.Status.PENDING:
+        if poll_future.status is not Future.Status.PENDING:
             # hook up result if already done
             _unwrap_result(poll_future)
         else:
@@ -566,7 +571,7 @@ class Socket(zmq.Socket):
         async def cancel_poll(future):
             """Cancel underlying poll if request has been cancelled"""
             await future.wait()
-            if not poll_future.status != Future.Status.PENDING:
+            if poll_future.status is Future.Status.PENDING:
                 try:
                     poll_future.cancel()
                 except RuntimeError:
@@ -581,7 +586,7 @@ class Socket(zmq.Socket):
         """Add a timeout for a send or recv Future"""
 
         def future_timeout():
-            if future.status != Future.Status.PENDING:
+            if future.status is not Future.Status.PENDING:
                 # future already resolved, do nothing
                 return
 
@@ -742,7 +747,7 @@ class Socket(zmq.Socket):
         while self._recv_futures:
             f, kind, kwargs, _, timer = self._recv_futures.popleft()
             # skip any cancelled futures
-            if f.status != Future.Status.PENDING:
+            if f.status is not Future.Status.PENDING:
                 f = None
             else:
                 break
@@ -785,7 +790,7 @@ class Socket(zmq.Socket):
         while self._send_futures:
             f, kind, kwargs, msg, timer = self._send_futures.popleft()
             # skip any cancelled futures
-            if f.status != Future.Status.PENDING:
+            if f.status is not Future.Status.PENDING:
                 f = None
             else:
                 break
@@ -867,7 +872,7 @@ class Socket(zmq.Socket):
         """
         self._schedule_remaining_events()
 
-    async def __aenter__(self) -> Socket:
+    async def __aenter__(self) -> Self:
         if self._starting:
             return self
 
