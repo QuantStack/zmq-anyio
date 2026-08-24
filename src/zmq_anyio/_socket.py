@@ -735,7 +735,7 @@ class Socket(zmq.Socket):
 
     def _handle_recv(self) -> None:
         """Handle recv events"""
-        if not self._shadow_sock.get(EVENTS) & POLLIN:  # type: ignore[operator]
+        if not self._shadow_sock.get(EVENTS) & POLLIN:  # type: ignore
             # event triggered, but state may have been changed between trigger and callback
             return
         f = None
@@ -778,7 +778,7 @@ class Socket(zmq.Socket):
             f.return_value = result
 
     def _handle_send(self) -> None:
-        if not self._shadow_sock.get(EVENTS) & POLLOUT:  # type: ignore[operator]
+        if not self._shadow_sock.get(EVENTS) & POLLOUT:  # type: ignore
             # event triggered, but state may have been changed between trigger and callback
             return
         f = None
@@ -825,9 +825,9 @@ class Socket(zmq.Socket):
             return
 
         zmq_events = self._shadow_sock.get(EVENTS)
-        if zmq_events & zmq.POLLIN:  # type: ignore[operator]
+        if zmq_events & zmq.POLLIN:  # type: ignore
             self._handle_recv()
-        if zmq_events & zmq.POLLOUT:  # type: ignore[operator]
+        if zmq_events & zmq.POLLOUT:  # type: ignore
             self._handle_send()
         self._schedule_remaining_events()
 
