@@ -1,4 +1,4 @@
-[![Build Status](https://github.com/davidbrochart/zmq-anyio/actions/workflows/test.yml/badge.svg?query=branch%3Amain++)](https://github.com/davidbrochart/zmq-anyio/actions/workflows/test.yml/badge.svg?query=branch%3Amain++)
+[![Build Status](https://github.com/QuantStack/zmq-anyio/actions/workflows/test.yml/badge.svg?query=branch%3Amain++)](https://github.com/QuantStack/zmq-anyio/actions/workflows/test.yml/badge.svg?query=branch%3Amain++)
 
 # zmq-anyio
 

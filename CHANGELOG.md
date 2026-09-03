@@ -1,5 +1,9 @@
 # Version history
 
+## 0.4.0
+
+- Drop `anyioutils` and use `Future` from AnyIO v4.15.0.
+
 ## 0.3.14
 
 - Fix `Socket.close()`.
