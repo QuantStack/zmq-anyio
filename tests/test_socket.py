@@ -231,12 +231,12 @@ async def test_custom_serialize(create_bound_pair):
                 "b": "bee",
             }
         }
-        await a.asend_serialized(msg, serialize).wait()
+        await a.asend_serialized(msg, serialize)
         recvd = await b.arecv_serialized(deserialize)
         assert recvd["content"] == msg["content"]
         assert recvd["identities"]
         # bounce back, tests identities
-        await b.asend_serialized(recvd, serialize).wait()
+        await b.asend_serialized(recvd, serialize)
         r2 = await a.arecv_serialized(deserialize)
         assert r2["content"] == msg["content"]
         assert not r2["identities"]
@@ -246,9 +246,9 @@ async def test_custom_serialize(create_bound_pair):
 async def test_custom_serialize_error(dealer_router):
     a, b = map(Socket, dealer_router)
     async with b, a:
-        await a.asend(b"not json").wait()
-        with pytest.raises(TypeError):
-            await b.arecv_serialized(json.loads).wait()
+        await a.asend(b"not json")
+        with pytest.RaisesGroup(TypeError):
+            await b.arecv_serialized(json.loads)
 
 
 async def test_recv_dontwait(push_pull):
@@ -315,7 +315,7 @@ async def test_poll_base_socket(sockets):
 
     async with create_task_group() as tg:
         f = poller.apoll(tg, timeout=1000)
-        assert f.status == Future.Status.PENDING
+        assert f.status is Future.Status.PENDING
         a.send_multipart([b"hi", b"there"])
         evt = await f
         assert evt == [(b, zmq.POLLIN)]
@@ -331,7 +331,7 @@ async def test_poll_on_closed_socket(push_pull):
         f = b.apoll(timeout=1)
         await sleep(0.1)
 
-    assert f.done()
+    assert f.status is not Future.Status.PENDING
 
 
 async def test_close(create_bound_pair):
@@ -344,10 +344,6 @@ async def test_close(create_bound_pair):
             b.close()
 
 
-@pytest.mark.skipif(
-    platform.python_implementation() == "PyPy",
-    reason="Sometimes fails on PyPy",
-)
 async def test_restart(free_tcp_port_factory):
     context = zmq.Context()
     for i in range(100):

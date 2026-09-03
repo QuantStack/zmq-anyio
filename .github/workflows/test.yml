@@ -28,9 +28,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
           activate-environment: "true"
       - name: Install zmq-anyio
-        run: |
-          uv pip install git+https://github.com/agronholm/anyio.git@master
-          uv pip install -e . --group test
+        run: uv pip install -e . --group test
       - name: Check with mypy and ruff
         if: ${{ (matrix.python-version == '3.14') && (matrix.os == 'ubuntu-latest') }}
         run: |
