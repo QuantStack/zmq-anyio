@@ -978,7 +978,16 @@ class Socket(zmq.Socket):
             pass
         self.close()
 
+    def _cancel_pending_futures(self) -> None:
+        for futures in (self._recv_futures, self._send_futures):
+            while futures:
+                future, _, _, _, timer = futures.popleft()
+                timer.cancel()
+                future.cancel()
+
     def close(self, linger: int | None = None) -> None:
+        self._cancel_pending_futures()
+
         fd = self._fd
         if not self.closed and fd is not None:
             notify_closing(fd)
