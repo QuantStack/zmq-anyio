@@ -1,5 +1,9 @@
 # Version history
 
+## 0.4.1
+
+- Cancel pending futures on socket close.
+
 ## 0.4.0
 
 - Drop `anyioutils` and use `Future` from AnyIO v4.15.0.
