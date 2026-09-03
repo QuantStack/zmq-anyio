@@ -344,6 +344,15 @@ async def test_close(create_bound_pair):
             b.close()
 
 
+async def test_close_with_pending_recv(create_bound_pair):
+    _, b = map(Socket, create_bound_pair(zmq.PUSH, zmq.PULL))
+    with fail_after(1):
+        async with b:
+            future = b.arecv()
+
+    assert future.status is Future.Status.CANCELLED
+
+
 async def test_restart(free_tcp_port_factory):
     context = zmq.Context()
     for i in range(100):
